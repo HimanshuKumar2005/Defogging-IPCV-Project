@@ -1,0 +1,1 @@
+"""Classical image-processing methods."""

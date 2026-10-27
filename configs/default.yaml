@@ -1,0 +1,20 @@
+project:
+  name: "Image Dehazing: Classical Image Processing vs Deep Learning"
+  device: "auto"
+
+paths:
+  checkpoint: "checkpoints/aodnet.pth"
+  output_dir: "outputs"
+  evaluation_dir: "data/evaluation"
+
+dcp:
+  patch_size: 15
+  omega: 0.95
+  t_min: 0.1
+  atmospheric_percentile: 0.001
+  guided_radius: 40
+  guided_epsilon: 0.001
+
+aodnet:
+  enabled: true
+  strict_checkpoint: false
