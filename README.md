@@ -78,8 +78,11 @@ python -m dehazing.inference input.jpg --method aodnet --checkpoint checkpoints\
 ```
 
 The CLI reads BGR files with OpenCV, converts them to RGB for processing, and
-converts results back to BGR when saving. The Streamlit UI, batch processing,
-and reporting remain future work.
+converts results back to BGR when saving. Batch processing and manifest-driven
+evaluation are available through [scripts/batch_process.py](scripts/batch_process.py)
+and [scripts/evaluate.py](scripts/evaluate.py). See
+[data/evaluation/README.md](data/evaluation/README.md) for a small paired-subset
+workflow; no dataset is downloaded automatically.
 
 ## Quality metrics
 
