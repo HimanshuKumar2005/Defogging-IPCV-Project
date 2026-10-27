@@ -68,4 +68,15 @@ vectorized grayscale guided-filter fallback otherwise. The checkpoint-compatible
 AOD-Net architecture and safe optional loader are available, but no verified
 PyTorch checkpoint is bundled because the referenced repositories do not expose
 one at a stable, verifiable source. See [checkpoints/README.md](checkpoints/README.md).
-The Streamlit UI, batch processing, and reporting remain future work.
+Both methods are available through the central inference interface. For a
+single image:
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path + "\src"
+python -m dehazing.inference input.jpg --method dcp --output-path outputs\dcp.png
+python -m dehazing.inference input.jpg --method aodnet --checkpoint checkpoints\aodnet.pth --output-path outputs\aodnet.png
+```
+
+The CLI reads BGR files with OpenCV, converts them to RGB for processing, and
+converts results back to BGR when saving. The Streamlit UI, batch processing,
+and reporting remain future work.
