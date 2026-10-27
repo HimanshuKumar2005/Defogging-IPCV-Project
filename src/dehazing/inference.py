@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 
 from .classical.dcp import dehaze_dcp
+from .metrics import measure_torch_inference
 from .models.aodnet import AODNet
 from .models.pretrained_loader import load_pretrained_model, predict
 
@@ -107,15 +108,16 @@ def dehaze_with_aodnet(
     normalized = _validate_image(image)
     selected_device = select_device(device)
     checkpoint = checkpoint_path or Path("checkpoints") / "aodnet.pth"
-    started = time.perf_counter()
     model = _get_aodnet_model(checkpoint, selected_device)
 
     import torch
 
     tensor = torch.from_numpy(normalized.transpose(2, 0, 1)).unsqueeze(0)
     tensor = tensor.to(selected_device)
-    output = predict(model, tensor)[0].detach().cpu().numpy().transpose(1, 2, 0)
-    elapsed = time.perf_counter() - started
+    output_tensor, elapsed = measure_torch_inference(
+        lambda: predict(model, tensor), selected_device
+    )
+    output = output_tensor[0].detach().cpu().numpy().transpose(1, 2, 0)
     output = np.nan_to_num(np.clip(output, 0.0, 1.0), nan=0.0, posinf=1.0, neginf=0.0)
     return DehazingResult(
         image=output.astype(np.float32),

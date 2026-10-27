@@ -80,3 +80,15 @@ python -m dehazing.inference input.jpg --method aodnet --checkpoint checkpoints\
 The CLI reads BGR files with OpenCV, converts them to RGB for processing, and
 converts results back to BGR when saving. The Streamlit UI, batch processing,
 and reporting remain future work.
+
+## Quality metrics
+
+[metrics.py](src/dehazing/metrics.py) provides PSNR and RGB SSIM for comparing
+an output against a genuine, aligned clear reference image. Images are
+normalized to `[0, 1]`, so both metrics use `data_range=1.0`. Identical images
+have infinite PSNR and SSIM of 1.0. If no reference is available, the metrics
+are recorded as unavailable (`None`/blank in CSV), never calculated against the
+hazy input or a fabricated image. Per-image records can be aggregated with
+mean and population standard deviation and exported to CSV. Inference timing
+starts after model loading; CUDA timing synchronizes before and after the
+measured call.
