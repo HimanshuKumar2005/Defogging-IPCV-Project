@@ -64,5 +64,8 @@ python -c "import cv2; from dehazing.classical.dcp import dehaze_dcp; image = cv
 ```
 
 The implementation uses OpenCV's `ximgproc.guidedFilter` when available and a
-vectorized grayscale guided-filter fallback otherwise. AOD-Net inference,
-Streamlit UI, batch processing, and reporting remain future work.
+vectorized grayscale guided-filter fallback otherwise. The checkpoint-compatible
+AOD-Net architecture and safe optional loader are available, but no verified
+PyTorch checkpoint is bundled because the referenced repositories do not expose
+one at a stable, verifiable source. See [checkpoints/README.md](checkpoints/README.md).
+The Streamlit UI, batch processing, and reporting remain future work.

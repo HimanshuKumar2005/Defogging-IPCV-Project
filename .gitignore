@@ -22,6 +22,10 @@ outputs/*
 !outputs/.gitkeep
 checkpoints/*
 !checkpoints/README.md
+*.pth
+*.pt
+*.pkl
+*.caffemodel
 data/evaluation/*
 !data/evaluation/README.md
 
