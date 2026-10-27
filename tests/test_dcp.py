@@ -7,6 +7,7 @@ import pytest
 
 from dehazing.classical.dcp import (
     dehaze_dcp,
+    dehaze_dcp_details,
     estimate_atmospheric_light,
     estimate_transmission,
     get_dark_channel,
@@ -27,6 +28,14 @@ def test_dark_channel_uses_local_minimum(sample_image: np.ndarray) -> None:
     assert dark.shape == sample_image.shape[:2]
     assert np.isclose(dark[12, 16], 0.6)
     assert dark.min() >= 0
+
+
+def test_dcp_details_expose_visualization_maps(sample_image: np.ndarray) -> None:
+    details = dehaze_dcp_details(sample_image, {"patch_size": 3, "guided_radius": 2})
+    assert details["image"].shape == sample_image.shape
+    assert details["dark_channel"].shape == sample_image.shape[:2]
+    assert details["transmission"].shape == sample_image.shape[:2]
+    assert details["atmospheric_light"].shape == (3,)
 
 
 def test_atmospheric_light_is_bright_candidate(sample_image: np.ndarray) -> None:

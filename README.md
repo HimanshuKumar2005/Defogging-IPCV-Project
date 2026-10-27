@@ -84,6 +84,12 @@ and [scripts/evaluate.py](scripts/evaluate.py). See
 [data/evaluation/README.md](data/evaluation/README.md) for a small paired-subset
 workflow; no dataset is downloaded automatically.
 
+The Streamlit application provides before/after and three-panel displays,
+optional zoomed center crops, downloadable PNG outputs, reference difference
+views, DCP dark-channel and transmission diagnostics, and a multi-file batch
+summary. Every displayed output and metric comes from the selected algorithm's
+actual execution; missing AOD-Net weights remain an explicit unavailable state.
+
 ## Quality metrics
 
 [metrics.py](src/dehazing/metrics.py) provides PSNR and RGB SSIM for comparing

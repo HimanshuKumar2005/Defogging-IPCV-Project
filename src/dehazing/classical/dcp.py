@@ -205,10 +205,10 @@ def _load_config(config: Mapping[str, Any] | str | Path | None) -> dict[str, Any
     raise TypeError("config must be a mapping, YAML path, or None")
 
 
-def dehaze_dcp(
+def dehaze_dcp_details(
     image: np.ndarray, config: Mapping[str, Any] | str | Path | None = None
-) -> np.ndarray:
-    """Run the complete DCP dehazing pipeline and return an RGB float32 image."""
+) -> dict[str, np.ndarray]:
+    """Run DCP and return the output plus diagnostic maps for visualization."""
     settings = _load_config(config)
     patch_size = settings["patch_size"]
     omega = settings["omega"]
@@ -235,7 +235,19 @@ def dehaze_dcp(
         settings["guided_radius"],
         settings["guided_epsilon"],
     )
-    return recover_scene_radiance(normalized, refined, atmospheric, t_min)
+    return {
+        "image": recover_scene_radiance(normalized, refined, atmospheric, t_min),
+        "dark_channel": dark_channel.astype(np.float32),
+        "transmission": refined.astype(np.float32),
+        "atmospheric_light": atmospheric.astype(np.float32),
+    }
+
+
+def dehaze_dcp(
+    image: np.ndarray, config: Mapping[str, Any] | str | Path | None = None
+) -> np.ndarray:
+    """Run the complete DCP dehazing pipeline and return an RGB float32 image."""
+    return dehaze_dcp_details(image, config)["image"]
 
 
 def dehaze(image: np.ndarray) -> np.ndarray:

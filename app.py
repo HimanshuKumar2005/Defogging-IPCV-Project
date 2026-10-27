@@ -14,6 +14,7 @@ from src.dehazing.inference import (
     compare_dehazing_methods,
     dehaze_with_aodnet,
     dehaze_with_dcp,
+    inspect_dcp,
     select_device,
 )
 from src.dehazing.metrics import calculate_psnr, calculate_ssim
@@ -39,66 +40,72 @@ def _image_bytes(image: np.ndarray) -> bytes:
 
 
 def _dcp_config(st: Any) -> dict[str, dict[str, float | int]]:
-    """Render DCP controls and return the selected configuration."""
     with st.sidebar.expander("DCP parameters", expanded=True):
-        patch_size = st.slider("Patch size", min_value=1, max_value=31, value=15, step=2)
-        omega = st.slider("Omega", min_value=0.0, max_value=1.0, value=0.95, step=0.01)
-        t_min = st.slider(
-            "Minimum transmission", min_value=0.01, max_value=0.5, value=0.1, step=0.01
-        )
+        patch_size = st.slider("Patch size", 1, 31, 15, 2)
+        omega = st.slider("Omega", 0.0, 1.0, 0.95, 0.01)
+        t_min = st.slider("Minimum transmission", 0.01, 0.5, 0.1, 0.01)
         atmospheric_percentile = st.number_input(
-            "Atmospheric-light percentile",
-            min_value=0.0001,
-            max_value=1.0,
-            value=0.001,
-            format="%.4f",
+            "Atmospheric-light percentile", 0.0001, 1.0, 0.001, format="%.4f"
         )
-        guided_radius = st.slider(
-            "Guided-filter radius", min_value=1, max_value=100, value=40
-        )
+        guided_radius = st.slider("Guided-filter radius", 1, 100, 40)
         guided_epsilon = st.number_input(
-            "Guided-filter epsilon",
-            min_value=0.000001,
-            max_value=1.0,
-            value=0.001,
-            format="%.6f",
+            "Guided-filter epsilon", 0.000001, 1.0, 0.001, format="%.6f"
         )
-    return {
-        "dcp": {
-            "patch_size": patch_size,
-            "omega": omega,
-            "t_min": t_min,
-            "atmospheric_percentile": atmospheric_percentile,
-            "guided_radius": guided_radius,
-            "guided_epsilon": guided_epsilon,
-        }
-    }
+    return {"dcp": {
+        "patch_size": patch_size,
+        "omega": omega,
+        "t_min": t_min,
+        "atmospheric_percentile": atmospheric_percentile,
+        "guided_radius": guided_radius,
+        "guided_epsilon": guided_epsilon,
+    }}
 
 
-def _show_metrics(st: Any, result: DehazingResult, reference: np.ndarray | None) -> None:
-    """Display timing and reference metrics for one result."""
-    st.caption(f"Processing time: **{result.processing_time:.4f} seconds**")
+def _metrics(reference: np.ndarray | None, result: DehazingResult) -> tuple[str, str]:
     if reference is None:
-        st.info("Upload a clear reference image to calculate PSNR and SSIM.")
-        return
+        return "Unavailable", "Unavailable"
     try:
         psnr = calculate_psnr(reference, result.image)
         ssim = calculate_ssim(reference, result.image)
-    except (TypeError, ValueError) as exc:
-        st.warning(f"Reference metrics unavailable: {exc}")
+    except (TypeError, ValueError):
+        return "Unavailable", "Unavailable"
+    return ("∞ dB" if np.isinf(psnr) else f"{psnr:.2f} dB", f"{ssim:.4f}")
+
+
+def _comparison_table(st: Any, results: list[DehazingResult], reference: np.ndarray | None) -> None:
+    rows = []
+    for result in results:
+        psnr, ssim = _metrics(reference, result)
+        rows.append({
+            "Method": result.method.upper(),
+            "Inference time (s)": f"{result.processing_time:.4f}",
+            "PSNR": psnr,
+            "SSIM": ssim,
+        })
+    st.subheader("Compact comparison")
+    st.table(rows)
+    if reference is None:
+        st.caption("PSNR and SSIM are unavailable without a valid aligned clear reference.")
+    st.info("A visually pleasing result does not automatically have the best PSNR or SSIM.")
+
+
+def _difference_view(st: Any, result: DehazingResult, reference: np.ndarray) -> None:
+    try:
+        reference_values = reference.astype(np.float32)
+        if np.issubdtype(reference.dtype, np.integer):
+            reference_values /= 255.0
+        difference = np.abs(reference_values - result.image)
+        difference = np.clip(difference * 4.0, 0.0, 1.0)
+    except (ValueError, TypeError):
         return
-    columns = st.columns(2)
-    columns[0].metric("PSNR", "∞ dB" if np.isinf(psnr) else f"{psnr:.2f} dB")
-    columns[1].metric("SSIM", f"{ssim:.4f}")
+    st.image(
+        difference,
+        caption=f"Absolute difference from reference ({result.method.upper()}); contrast enhanced 4×",
+        use_container_width=True,
+    )
 
 
-def _result_panel(
-    st: Any, heading: str, result: DehazingResult, reference: np.ndarray | None
-) -> None:
-    """Render one result, its metrics, and a download button."""
-    st.subheader(heading)
-    st.image(result.image, caption=f"{result.method.upper()} output", use_container_width=True)
-    _show_metrics(st, result, reference)
+def _result_download(st: Any, result: DehazingResult) -> None:
     st.download_button(
         f"Download {result.method.upper()} PNG",
         data=_image_bytes(result.image),
@@ -108,119 +115,165 @@ def _result_panel(
     )
 
 
+def _display_results(
+    st: Any,
+    original: np.ndarray,
+    results: list[DehazingResult],
+    reference: np.ndarray | None,
+    zoom: bool,
+) -> None:
+    """Render actual outputs in a three-panel or before/after layout."""
+    panels = [("Original", original)] + [
+        (result.method.upper(), result.image) for result in results
+    ]
+    columns = st.columns(len(panels))
+    for column, (caption, image) in zip(columns, panels):
+        column.image(image, caption=caption, use_container_width=True)
+    if zoom:
+        with st.expander("Zoomed detail inspection", expanded=True):
+            height, width = original.shape[:2]
+            crop_size = min(height, width, max(32, min(height, width) // 2))
+            y0 = (height - crop_size) // 2
+            x0 = (width - crop_size) // 2
+            crop_columns = st.columns(len(panels))
+            for column, (caption, image) in zip(crop_columns, panels):
+                column.image(
+                    image[y0:y0 + crop_size, x0:x0 + crop_size],
+                    caption=f"{caption} center crop",
+                    use_container_width=True,
+                )
+    _comparison_table(st, results, reference)
+    for result in results:
+        _result_download(st, result)
+    if reference is not None:
+        with st.expander("Visual difference from clear reference"):
+            for result in results:
+                _difference_view(st, result, reference)
+
+
+def _display_dcp_diagnostics(st: Any, image: np.ndarray, config: dict[str, Any]) -> None:
+    with st.expander("DCP diagnostics", expanded=False):
+        show_dark = st.checkbox("Show dark channel", value=True)
+        show_transmission = st.checkbox("Show transmission map", value=True)
+        details = inspect_dcp(image, config)
+        diagnostic_columns = st.columns(2)
+        if show_dark:
+            diagnostic_columns[0].image(
+                details["dark_channel"],
+                caption="Dark channel (darker pixels indicate stronger haze prior)",
+                clamp=True,
+                use_container_width=True,
+            )
+        if show_transmission:
+            diagnostic_columns[1].image(
+                details["transmission"],
+                caption="Refined transmission map (brighter means more scene visibility)",
+                clamp=True,
+                use_container_width=True,
+            )
+        st.caption(
+            "Diagnostic maps are generated by the same DCP execution family; "
+            "they are not benchmark or fabricated outputs."
+        )
+
+
+def _run_batch(st: Any, files: list[Any], config: dict[str, Any], method: str,
+               checkpoint: Path | None, device: str) -> None:
+    rows = []
+    for uploaded in files:
+        try:
+            image = _uploaded_to_rgb(uploaded)
+            results = []
+            if method in {"Classical DCP", "Compare Both"}:
+                results.append(dehaze_with_dcp(image, config))
+            if method in {"Pretrained AOD-Net", "Compare Both"}:
+                results.append(dehaze_with_aodnet(image, checkpoint, device))
+            for result in results:
+                rows.append({
+                    "Image": uploaded.name,
+                    "Method": result.method.upper(),
+                    "Status": "success",
+                    "Time (s)": round(result.processing_time, 4),
+                })
+        except FileNotFoundError as exc:
+            rows.append({"Image": uploaded.name, "Method": "AODNET", "Status": "model_unavailable", "Time (s)": None, "Error": str(exc)})
+        except (RuntimeError, TypeError, ValueError, OSError) as exc:
+            rows.append({"Image": uploaded.name, "Method": method, "Status": "failed", "Time (s)": None, "Error": str(exc)})
+    st.subheader("Batch-processing summary")
+    st.dataframe(rows, use_container_width=True)
+    st.caption("Batch summaries contain only actual executions; unavailable methods are not replaced with fabricated results.")
+
+
 def main() -> None:
-    """Run the Streamlit dehazing application."""
     try:
         import streamlit as st
     except ImportError as exc:
-        raise RuntimeError(
-            "Streamlit is required. Install dependencies with "
-            "`python -m pip install -r requirements.txt`."
-        ) from exc
+        raise RuntimeError("Streamlit is required. Install requirements.txt.") from exc
 
-    st.set_page_config(
-        page_title="Image Dehazing: Classical vs Deep Learning",
-        page_icon="🌫️",
-        layout="wide",
-    )
+    st.set_page_config(page_title="Image Dehazing: Classical vs Deep Learning", page_icon="🌫️", layout="wide")
     st.title("Image Dehazing: Classical vs Deep Learning")
-    st.write(
-        "Compare the classical Dark Channel Prior (DCP) method with an optional "
-        "pretrained AOD-Net checkpoint. No model training is performed."
-    )
-
+    st.write("Compare actual DCP and optional pretrained AOD-Net executions. No training is performed.")
     with st.sidebar:
         st.header("Controls")
-        method = st.radio(
-            "Dehazing method",
-            ("Classical DCP", "Pretrained AOD-Net", "Compare Both"),
-        )
-        device = st.selectbox("Execution device", ("auto", "cpu", "cuda"), index=0)
-        checkpoint_text = st.text_input(
-            "AOD-Net checkpoint path",
-            value="checkpoints/aodnet.pth",
-            help="A compatible verified state-dict checkpoint is required for AOD-Net.",
-        )
+        method = st.radio("Dehazing method", ("Classical DCP", "Pretrained AOD-Net", "Compare Both"))
+        device = st.selectbox("Execution device", ("auto", "cpu", "cuda"))
+        checkpoint_text = st.text_input("AOD-Net checkpoint path", "checkpoints/aodnet.pth")
+        zoom = st.checkbox("Show zoomed details", value=False)
+        batch_mode = st.checkbox("Batch upload mode", value=False)
         try:
-            resolved_device = select_device(device)
+            st.caption(f"Selected device: `{select_device(device)}`")
         except RuntimeError as exc:
-            resolved_device = None
             st.warning(str(exc))
-        if resolved_device is not None:
-            st.caption(f"Selected execution device: `{resolved_device}`.")
-    dcp_config = _dcp_config(st)
-
+    config = _dcp_config(st)
+    checkpoint = Path(checkpoint_text).expanduser() if checkpoint_text.strip() else None
     uploaded = st.file_uploader(
-        "Upload a hazy image",
+        "Upload hazy image(s)",
         type=["jpg", "jpeg", "png"],
-        help="Images are processed as RGB and retain their original dimensions.",
+        accept_multiple_files=batch_mode,
     )
-    reference_file = st.file_uploader(
-        "Optional clear-reference image",
-        type=["jpg", "jpeg", "png"],
-        help="Use an aligned clear image with the same dimensions for PSNR and SSIM.",
-    )
-    if uploaded is None:
+    reference_file = st.file_uploader("Optional clear-reference image", type=["jpg", "jpeg", "png"])
+    if not uploaded:
         st.info("Upload a JPG, JPEG, or PNG image to begin.")
-        with st.expander("Usage instructions"):
-            st.markdown(
-                "1. Upload a hazy image.  \n"
-                "2. Choose DCP, AOD-Net, or comparison mode.  \n"
-                "3. Adjust DCP parameters in the sidebar.  \n"
-                "4. Optionally upload an aligned clear reference for PSNR/SSIM.  \n"
-                "5. Download each generated PNG from its result panel."
-            )
         return
-
+    if batch_mode:
+        _run_batch(st, uploaded if isinstance(uploaded, list) else [uploaded], config, method, checkpoint, device)
+        return
     try:
         image = _uploaded_to_rgb(uploaded)
         reference = _uploaded_to_rgb(reference_file) if reference_file else None
     except ValueError as exc:
         st.error(str(exc))
         return
-
-    st.subheader("Original hazy image")
-    st.image(image, caption=f"RGB input: {image.shape[1]} × {image.shape[0]}", use_container_width=True)
-    if reference is not None:
-        st.caption("Reference metrics require matching dimensions; mismatches are reported below.")
-
-    checkpoint = Path(checkpoint_text).expanduser() if checkpoint_text.strip() else None
+    st.subheader("Before")
+    st.image(image, caption=f"Original hazy RGB image ({image.shape[1]} × {image.shape[0]})", use_container_width=True)
     if st.button("Run dehazing", type="primary"):
+        results: list[DehazingResult] = []
         if method == "Classical DCP":
             try:
-                result = dehaze_with_dcp(image, dcp_config)
+                results = [dehaze_with_dcp(image, config)]
             except (TypeError, ValueError, OSError) as exc:
                 st.error(f"DCP inference failed: {exc}")
-                return
-            _result_panel(st, "Classical DCP result", result, reference)
         elif method == "Pretrained AOD-Net":
             try:
-                result = dehaze_with_aodnet(image, checkpoint, device)
+                results = [dehaze_with_aodnet(image, checkpoint, device)]
             except FileNotFoundError as exc:
                 st.warning(f"AOD-Net is unavailable: {exc}")
                 st.info("Install a compatible checkpoint or select Classical DCP.")
             except (RuntimeError, TypeError, ValueError) as exc:
                 st.error(f"AOD-Net inference failed: {exc}")
-            else:
-                _result_panel(st, "Pretrained AOD-Net result", result, reference)
         else:
-            try:
-                results = compare_dehazing_methods(image, checkpoint, dcp_config, device)
-            except (TypeError, ValueError, OSError) as exc:
-                st.error(f"Comparison could not start: {exc}")
-                return
-            dcp_result = results["dcp"]
-            if dcp_result is not None:
-                _result_panel(st, "Classical DCP result", dcp_result, reference)
-            aod_result = results["aodnet"]
-            if aod_result is not None:
-                _result_panel(st, "Pretrained AOD-Net result", aod_result, reference)
-            else:
-                error = results.get("errors", {}).get("aodnet", "checkpoint is unavailable")
-                if "not found" in error.lower():
-                    st.warning(f"AOD-Net is unavailable: {error}")
-                else:
-                    st.error(f"AOD-Net inference failed: {error}")
+            comparison = compare_dehazing_methods(image, checkpoint, config, device)
+            if comparison["dcp"] is not None:
+                results.append(comparison["dcp"])
+            if comparison["aodnet"] is not None:
+                results.append(comparison["aodnet"])
+            elif "errors" in comparison:
+                error = comparison["errors"]["aodnet"]
+                st.warning(f"AOD-Net is unavailable or failed: {error}")
+        if results:
+            _display_results(st, image, results, reference, zoom)
+            if any(result.method == "dcp" for result in results):
+                _display_dcp_diagnostics(st, image, config)
 
 
 if __name__ == "__main__":

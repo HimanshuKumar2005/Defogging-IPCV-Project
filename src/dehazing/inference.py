@@ -17,7 +17,7 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 
-from .classical.dcp import dehaze_dcp
+from .classical.dcp import dehaze_dcp, dehaze_dcp_details
 from .metrics import measure_torch_inference
 from .models.aodnet import AODNet
 from .models.pretrained_loader import load_pretrained_model, predict
@@ -89,6 +89,17 @@ def dehaze_with_dcp(
         processing_time=elapsed,
         metadata={"input_shape": tuple(image.shape), "output_range": "[0, 1]"},
     )
+
+
+def inspect_dcp(
+    image: np.ndarray, config: Mapping[str, Any] | str | Path | None = None
+) -> dict[str, np.ndarray | float]:
+    """Return DCP output and diagnostic maps with one measured execution."""
+    normalized = _validate_image(image)
+    started = time.perf_counter()
+    details = dehaze_dcp_details(normalized, config)
+    details["processing_time"] = time.perf_counter() - started
+    return details
 
 
 def _get_aodnet_model(checkpoint_path: str | Path, device: str) -> AODNet:
