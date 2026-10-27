@@ -106,8 +106,8 @@ def evaluate_manifest(
                     {
                         "status": "reference_invalid" if reference_error else "success",
                         "processing_time_seconds": f"{result.processing_time:.9f}",
-                        "psnr": "" if record.psnr is None else record.psnr,
-                        "ssim": "" if record.ssim is None else record.ssim,
+                        "psnr": "" if record.psnr is None else str(record.psnr),
+                        "ssim": "" if record.ssim is None else str(record.ssim),
                         "error": reference_error or "",
                     }
                 )
@@ -182,8 +182,10 @@ def write_metric_plot(rows: list[dict[str, Any]], output_path: str | Path) -> No
     figure, axes = plt.subplots(1, 2, figsize=(10, 4))
     for selected_method in methods:
         method_rows = [row for row in valid if row["method"] == selected_method]
-        axes[0].plot([float(row["psnr"]) for row in method_rows], label=selected_method)
-        axes[1].plot([float(row["ssim"]) for row in method_rows], label=selected_method)
+        psnr_vals = [float(row["psnr"]) for row in method_rows if row["psnr"] not in ("", "inf")]
+        ssim_vals = [float(row["ssim"]) for row in method_rows if row["ssim"] != ""]
+        axes[0].plot(psnr_vals, label=selected_method)
+        axes[1].plot(ssim_vals, label=selected_method)
     axes[0].set_title("PSNR (dB)")
     axes[1].set_title("SSIM")
     for axis in axes:

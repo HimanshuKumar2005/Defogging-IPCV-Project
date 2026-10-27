@@ -23,6 +23,7 @@ from .models.aodnet import AODNet
 from .models.pretrained_loader import load_pretrained_model, predict
 
 _MODEL_CACHE: dict[tuple[str, str], AODNet] = {}
+_MODEL_CACHE_MAX = 8  # prevent unbounded memory growth
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,9 @@ def _get_aodnet_model(checkpoint_path: str | Path, device: str) -> AODNet:
     path = Path(checkpoint_path).expanduser().resolve()
     key = (str(path), device)
     if key not in _MODEL_CACHE:
+        if len(_MODEL_CACHE) >= _MODEL_CACHE_MAX:
+            # Evict the oldest entry to cap memory usage.
+            _MODEL_CACHE.pop(next(iter(_MODEL_CACHE)))
         _MODEL_CACHE[key] = load_pretrained_model(path, device)
     return _MODEL_CACHE[key]
 

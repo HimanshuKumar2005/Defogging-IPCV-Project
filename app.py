@@ -20,8 +20,21 @@ from src.dehazing.inference import (
 from src.dehazing.metrics import calculate_psnr, calculate_ssim
 
 
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB per uploaded file
+
+
 def _uploaded_to_rgb(uploaded_file: Any) -> np.ndarray:
     """Decode an uploaded image as an RGB uint8 array."""
+    # Guard against extremely large uploads that could cause OOM.
+    try:
+        size = uploaded_file.size  # available on Streamlit UploadedFile
+    except AttributeError:
+        size = None
+    if size is not None and size > _MAX_UPLOAD_BYTES:
+        raise ValueError(
+            f"Uploaded file is too large ({size / 1e6:.1f} MB). "
+            f"Maximum allowed size is {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
+        )
     try:
         with Image.open(uploaded_file) as image:
             return np.asarray(image.convert("RGB"), dtype=np.uint8)
@@ -225,7 +238,23 @@ def main() -> None:
         except RuntimeError as exc:
             st.warning(str(exc))
     config = _dcp_config(st)
-    checkpoint = Path(checkpoint_text).expanduser() if checkpoint_text.strip() else None
+    # Resolve the checkpoint path — restrict to the checkpoints/ folder to
+    # prevent a path-traversal attack through the sidebar text input.
+    _project_root = Path(__file__).parent.resolve()
+    _checkpoints_dir = _project_root / "checkpoints"
+    if checkpoint_text.strip():
+        _raw = Path(checkpoint_text).expanduser()
+        _resolved = (_raw if _raw.is_absolute() else _project_root / _raw).resolve()
+        try:
+            _resolved.relative_to(_checkpoints_dir)
+            checkpoint = _resolved
+        except ValueError:
+            st.sidebar.error(
+                "Checkpoint path must be inside the 'checkpoints/' directory."
+            )
+            checkpoint = None
+    else:
+        checkpoint = None
     uploaded = st.file_uploader(
         "Upload hazy image(s)",
         type=["jpg", "jpeg", "png"],

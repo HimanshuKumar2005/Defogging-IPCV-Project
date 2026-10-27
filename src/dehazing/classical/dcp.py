@@ -35,13 +35,14 @@ def _validate_rgb_image(image: np.ndarray) -> np.ndarray:
     if not np.isfinite(image).all():
         raise ValueError("image must contain only finite values")
 
-    image_float = image.astype(np.float32, copy=False)
     if np.issubdtype(image.dtype, np.integer):
         if image.dtype != np.uint8:
             raise ValueError("integer images must use uint8 values in [0, 255]")
-        image_float = image_float / 255.0
-    elif np.min(image_float) < 0.0 or np.max(image_float) > 1.0:
-        raise ValueError("floating-point images must contain values in [0, 1]")
+        image_float = image.astype(np.float32) / 255.0
+    else:
+        image_float = image.astype(np.float32, copy=False)
+        if np.min(image_float) < 0.0 or np.max(image_float) > 1.0:
+            raise ValueError("floating-point images must contain values in [0, 1]")
     return np.clip(image_float, 0.0, 1.0)
 
 

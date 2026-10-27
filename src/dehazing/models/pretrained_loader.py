@@ -7,7 +7,7 @@ to random weights.
 
 from __future__ import annotations
 
-import pickle
+import pickle  # used only as an exception type in the except clause below
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any

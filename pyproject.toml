@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "defogging-ipcv"
+version = "0.1.0"
+description = "Classical DCP vs pretrained AOD-Net image dehazing comparison"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "opencv-python",
+    "Pillow",
+    "PyYAML",
+    "scikit-image",
+    "matplotlib",
+    "streamlit",
+    "torch",
+    "torchvision",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# conftest.py handles the sys.path insertion, so no pythonpath setting needed here.
+
+[tool.coverage.run]
+source = ["src"]
