@@ -1,0 +1,9 @@
+# Experimental: selected on four SOTS outdoor scenes, evaluated on 100 others.
+# See EVALUATION_REPORT.md. Not established as a universal improvement.
+dcp:
+  patch_size: 31
+  omega: 0.75
+  t_min: 0.08
+  atmospheric_percentile: 0.001
+  guided_radius: 20
+  guided_epsilon: 0.005
