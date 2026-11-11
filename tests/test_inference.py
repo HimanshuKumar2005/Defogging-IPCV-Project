@@ -30,7 +30,12 @@ def test_dcp_result_contract_and_dimensions() -> None:
 
 def test_aodnet_result_contract_and_model_cache(tmp_path) -> None:
     checkpoint = tmp_path / "aodnet.pth"
-    torch.save({"state_dict": AODNet().state_dict()}, checkpoint)
+    model = AODNet()
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.zero_()
+        model.conv5.bias.fill_(1.0)
+    torch.save({"state_dict": model.state_dict()}, checkpoint)
     _MODEL_CACHE.clear()
     first = dehaze_with_aodnet(_image(), checkpoint, "cpu")
     second = dehaze_with_aodnet(_image(), checkpoint, "cpu")
@@ -39,6 +44,28 @@ def test_aodnet_result_contract_and_model_cache(tmp_path) -> None:
     assert first.metadata["device"] == "cpu"
     assert first.metadata["resized"] is False
     assert len(_MODEL_CACHE) == 1
+
+
+def test_aodnet_cache_reloads_when_checkpoint_changes(tmp_path) -> None:
+    checkpoint = tmp_path / "aodnet.pth"
+    first_model = AODNet()
+    with torch.no_grad():
+        for parameter in first_model.parameters():
+            parameter.zero_()
+        first_model.conv5.bias.fill_(1.0)
+    torch.save({"state_dict": first_model.state_dict()}, checkpoint)
+    _MODEL_CACHE.clear()
+    dehaze_with_aodnet(_image(), checkpoint, "cpu")
+
+    second_model = AODNet()
+    with torch.no_grad():
+        for parameter in second_model.parameters():
+            parameter.zero_()
+        second_model.conv5.bias.fill_(0.5)
+    torch.save({"state_dict": second_model.state_dict()}, checkpoint)
+    dehaze_with_aodnet(_image(), checkpoint, "cpu")
+
+    assert len(_MODEL_CACHE) == 2
 
 
 def test_missing_aod_checkpoint_does_not_block_dcp() -> None:

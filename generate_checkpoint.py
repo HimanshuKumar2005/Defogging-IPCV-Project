@@ -1,12 +1,11 @@
-"""Generate a valid AOD-Net checkpoint with the correct architecture.
+"""Generate an architecture-only AOD-Net checkpoint for tests and inspection.
 
-Since no publicly-hosted direct-download URL exists for a verified AOD-Net
-.pth file, this script creates a checkpoint with properly initialized
-(Xavier-uniform) weights. The architecture matches the project's AODNet
-class exactly, so inference will run without errors.
+This script does not create a dehazing model. Randomly initialized weights
+cannot produce meaningful restoration results and must not be used by the
+application.
 
-For best dehazing quality, replace this checkpoint with one trained on
-a real dataset (e.g. NYU Depth, RESIDE ITS/OTS).
+Use a verified checkpoint trained on a real dataset (e.g. NYU Depth or
+RESIDE ITS/OTS) for actual inference.
 """
 import sys
 from pathlib import Path
@@ -22,7 +21,7 @@ from src.dehazing.models.aodnet import AODNet
 def main() -> None:
     checkpoint_dir = Path(__file__).parent / "checkpoints"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = checkpoint_dir / "aodnet.pth"
+    checkpoint_path = checkpoint_dir / "aodnet_untrained_for_tests.pth"
 
     model = AODNet()
 
@@ -50,7 +49,7 @@ def main() -> None:
     with torch.inference_mode():
         out = loaded(dummy)
     assert out.shape == dummy.shape, f"Shape mismatch: {out.shape} vs {dummy.shape}"
-    print("[OK] Checkpoint verified: loads and produces correct output shape")
+    print("[OK] Architecture checkpoint verified; do not use it for dehazing.")
 
 
 if __name__ == "__main__":

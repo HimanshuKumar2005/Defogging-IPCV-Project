@@ -112,7 +112,9 @@ commercial use, and record provenance and a checksum for any checkpoint used.
 
 ### Exact checkpoint procedure
 
-No verified checkpoint is bundled. If the authors or another trusted source
+No verified checkpoint is bundled. The repository must not generate or use
+randomly initialized weights: they commonly produce a nearly white image but
+are not a dehazing model. If the authors or another trusted source
 provides a compatible PyTorch state-dict checkpoint:
 
 1. Verify its source, license, checksum, expected preprocessing, and model
@@ -172,7 +174,10 @@ The application supports:
 - Multi-file batch upload summaries.
 
 If `checkpoints\aodnet.pth` is absent, choose DCP or use comparison mode; DCP
-will continue and the UI will label AOD-Net as unavailable.
+will continue and the UI will label AOD-Net as unavailable. If a checkpoint
+produces an almost completely white, low-variation output, inference rejects
+it as likely untrained or incompatible instead of displaying a misleading
+result.
 
 ## 7. Process one image
 
@@ -322,11 +327,13 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-### AOD-Net checkpoint not found
+### AOD-Net checkpoint not found or output is white
 
 Place a verified compatible state-dict at
 `checkpoints\aodnet.pth`. Do not use the Caffe `.caffemodel` as a PyTorch
-checkpoint. DCP does not depend on this file.
+checkpoint, and do not use `generate_checkpoint.py` as a source of model
+weights: that script creates an architecture-only checkpoint for tests.
+DCP does not depend on this file.
 
 ### Checkpoint is rejected as incompatible or corrupted
 

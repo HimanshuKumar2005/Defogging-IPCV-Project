@@ -49,3 +49,5 @@ inspection or checkpoint creation only. It must not be used to produce valid
 dehazing results; call `load_pretrained_model()` first.
 
 The application must continue to use DCP when this optional file is absent.
+The repository does not bundle a random placeholder checkpoint. Random
+weights produce misleading near-white outputs and are rejected by inference.

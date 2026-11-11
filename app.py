@@ -55,14 +55,14 @@ def _image_bytes(image: np.ndarray) -> bytes:
 def _dcp_config(st: Any) -> dict[str, dict[str, float | int]]:
     with st.sidebar.expander("DCP parameters", expanded=True):
         patch_size = st.slider("Patch size", 1, 31, 15, 2)
-        omega = st.slider("Omega", 0.0, 1.0, 0.95, 0.01)
-        t_min = st.slider("Minimum transmission", 0.01, 0.5, 0.1, 0.01)
+        omega = st.slider("Omega", 0.0, 1.0, 0.90, 0.01)
+        t_min = st.slider("Minimum transmission", 0.01, 0.5, 0.12, 0.01)
         atmospheric_percentile = st.number_input(
             "Atmospheric-light percentile", 0.0001, 1.0, 0.001, format="%.4f"
         )
-        guided_radius = st.slider("Guided-filter radius", 1, 100, 40)
+        guided_radius = st.slider("Guided-filter radius", 1, 100, 20)
         guided_epsilon = st.number_input(
-            "Guided-filter epsilon", 0.000001, 1.0, 0.001, format="%.6f"
+            "Guided-filter epsilon", 0.000001, 1.0, 0.005, format="%.6f"
         )
     return {"dcp": {
         "patch_size": patch_size,

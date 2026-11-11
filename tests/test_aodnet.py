@@ -60,6 +60,17 @@ def test_random_weights_are_not_presented_as_loaded(tmp_path) -> None:
         load_pretrained_model(checkpoint)
 
 
+def test_saturated_aodnet_output_is_rejected(tmp_path) -> None:
+    checkpoint = tmp_path / "untrained.pth"
+    torch.save({"state_dict": AODNet().state_dict()}, checkpoint)
+    from dehazing.inference import dehaze_with_aodnet
+
+    with pytest.raises(RuntimeError, match="almost completely white"):
+        dehaze_with_aodnet(
+            np.full((16, 16, 3), 0.4, dtype=np.float32), checkpoint, "cpu"
+        )
+
+
 def test_input_validation() -> None:
     model = AODNet().eval()
     with pytest.raises(ValueError):

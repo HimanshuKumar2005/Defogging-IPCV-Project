@@ -22,7 +22,7 @@ from .metrics import measure_torch_inference
 from .models.aodnet import AODNet
 from .models.pretrained_loader import load_pretrained_model, predict
 
-_MODEL_CACHE: dict[tuple[str, str], AODNet] = {}
+_MODEL_CACHE: dict[tuple[str, str, int, int], AODNet] = {}
 _MODEL_CACHE_MAX = 8  # prevent unbounded memory growth
 
 
@@ -105,7 +105,12 @@ def inspect_dcp(
 
 def _get_aodnet_model(checkpoint_path: str | Path, device: str) -> AODNet:
     path = Path(checkpoint_path).expanduser().resolve()
-    key = (str(path), device)
+    try:
+        stat = path.stat()
+        checkpoint_version = (stat.st_mtime_ns, stat.st_size)
+    except FileNotFoundError:
+        checkpoint_version = (0, 0)
+    key = (str(path), device, *checkpoint_version)
     if key not in _MODEL_CACHE:
         if len(_MODEL_CACHE) >= _MODEL_CACHE_MAX:
             # Evict the oldest entry to cap memory usage.
@@ -134,6 +139,20 @@ def dehaze_with_aodnet(
     )
     output = output_tensor[0].detach().cpu().numpy().transpose(1, 2, 0)
     output = np.nan_to_num(np.clip(output, 0.0, 1.0), nan=0.0, posinf=1.0, neginf=0.0)
+    saturation_fraction = float(np.mean(output >= 0.98))
+    output_mean = float(np.mean(output))
+    input_mean = float(np.mean(normalized))
+    output_std = float(np.std(output))
+    if (
+        saturation_fraction >= 0.25
+        and output_mean - input_mean >= 0.35
+        and output_std < 0.08
+    ):
+        raise RuntimeError(
+            "AOD-Net checkpoint produced an almost completely white image. "
+            "The checkpoint is likely untrained or incompatible; provide a "
+            "verified trained AOD-Net PyTorch state dict."
+        )
     return DehazingResult(
         image=output.astype(np.float32),
         method="aodnet",
@@ -144,6 +163,7 @@ def dehaze_with_aodnet(
             "device": selected_device,
             "checkpoint": str(Path(checkpoint)),
             "resized": False,
+            "saturation_fraction": saturation_fraction,
         },
     )
 

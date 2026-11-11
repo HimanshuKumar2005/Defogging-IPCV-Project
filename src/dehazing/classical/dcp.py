@@ -16,11 +16,11 @@ import numpy as np
 
 DEFAULT_CONFIG: dict[str, float | int] = {
     "patch_size": 15,
-    "omega": 0.95,
-    "t_min": 0.1,
+    "omega": 0.90,
+    "t_min": 0.12,
     "atmospheric_percentile": 0.001,
-    "guided_radius": 40,
-    "guided_epsilon": 1e-3,
+    "guided_radius": 20,
+    "guided_epsilon": 5e-3,
 }
 
 
